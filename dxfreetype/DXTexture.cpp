@@ -4,7 +4,7 @@
 BOOL DXTexture::LoadTexture(const TCHAR *path, IDirect3DDevice9* pd3dDevice)
 {
 	// check if texture is already exists ...
-	if (pTexture != 0)
+	if (pTexture)
 		pTexture->Release();
 
 	D3DXIMAGE_INFO pImgInf;

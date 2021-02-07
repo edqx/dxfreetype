@@ -1,5 +1,6 @@
 #include "DXFont.h"
 #include <vector>
+#include <string>
 
 	
 BOOL DXFont::InitDXFont(IDirect3DDevice9* device) {
@@ -48,9 +49,9 @@ BOOL DXFont::InitDXFont(IDirect3DDevice9* device) {
 		}
 	}
 
+	int errco = D3DXCreateTexture(device, TEXTURE_WIDTH, TEXTURE_HEIGHT, 0, D3DUSAGE_DYNAMIC, D3DFMT_A8R8G8B8, D3DPOOL_DEFAULT, &glyphTexture);
 	// TODO: create texture
-	if (FAILED(D3DXCreateTexture(device, TEXTURE_WIDTH, TEXTURE_HEIGHT, 1, 0,
-		D3DFMT_A8R8G8B8, D3DPOOL_MANAGED, &glyphTexture)))
+	if (FAILED(errco))
 		return FALSE;
 	// glyphTexture
 
@@ -85,9 +86,9 @@ BOOL DXFont::Release() {
 		glyphTexture->Release();
 
 		// TODO is releasing routing OKAY?
-		std::map<int, DXFontTexture*>::iterator it;
+		std::map<int, CachedTexture>::iterator it;
 		for (it=texture_cache.begin(); it != texture_cache.end(); it++) {
-			delete it->second;
+			delete it->second.texture;
 		}
 		texture_cache.clear();
 
@@ -97,7 +98,7 @@ BOOL DXFont::Release() {
 }
 
 
-BOOL DXFont::RenderChar(TCHAR chr, bool render, int *width, int *height) {
+BOOL DXFont::RenderChar(TCHAR chr, bool render, int *width, int *height, int* adv) {
 	// get glyph index
 	int index = FT_Get_Char_Index(ftFace, chr);
 	if (index == 0) {
@@ -105,16 +106,18 @@ BOOL DXFont::RenderChar(TCHAR chr, bool render, int *width, int *height) {
 	}
 
 	// load glyph
-	FT_Load_Glyph(ftFace,index,FT_LOAD_DEFAULT);
+	FT_Load_Glyph(ftFace, index, FT_LOAD_MONOCHROME);
  
 	// do rendering
 	if (render) {
 		FT_Render_Glyph(ftFace->glyph, FT_RENDER_MODE_NORMAL);
 
-		if (width!=0)
-			*width = ftFace->glyph->metrics.width/64;
-		if (height != 0)
-			*height = ftFace->glyph->metrics.height/64;
+		if (width)
+			*width = ftFace->glyph->metrics.width / 64;
+		if (height)
+			*height = ftFace->glyph->metrics.height / 64;
+		if (adv)
+			*adv = ftFace->glyph->metrics.horiAdvance / 64;
 	}
 
 	return TRUE;
@@ -147,7 +150,7 @@ BOOL DXFont::drawChar(TCHAR chr, D3DCOLOR* pixels, int textureWidth, int x, int 
 	int top = ftFace->glyph->bitmap_top;
 	int border = fontData->borderWidth;
 
-	if (pixels != 0 && width>0 && height>0) {
+	if (pixels) {
 		for (int i=0; i<width; i++) {
 			for (int j=0; j<height; j++) {
 				int Color = ftFace->glyph->bitmap.buffer[j*width+i];
@@ -172,7 +175,8 @@ BOOL DXFont::drawChar(TCHAR chr, D3DCOLOR* pixels, int textureWidth, int x, int 
 			&reinterpret_cast<FT_OutlineGlyph>(glyph)->outline;
 		
 		FT_Glyph_StrokeBorder(&glyph, ftStroker, 0, 1);
-		FT_Glyph_To_Bitmap(&glyph, FT_RENDER_MODE_NORMAL, &FT_Vector(), 1);
+		FT_Vector vec1 = FT_Vector();
+		FT_Glyph_To_Bitmap(&glyph, FT_RENDER_MODE_NORMAL, &vec1, 1);
 
 
 		FT_BitmapGlyph b = (FT_BitmapGlyph)glyph;
@@ -181,16 +185,23 @@ BOOL DXFont::drawChar(TCHAR chr, D3DCOLOR* pixels, int textureWidth, int x, int 
 		left -= fontData->borderWidth;
 		top += fontData->borderWidth;
 
-		for (int i=0; i<width; i++) {
-			for (int j=0; j<height; j++) {
-				int Color = b->bitmap.buffer[j*width+i];
-				if (Color > 0) {
-					int px = x+i;
-					int py = fontData->glyphHeight - top +y+j;
-					int ind = px + py*textureWidth;
-					if (pixels[ind] == 0) {
-						// set argb
-						pixels[ind] = D3DCOLOR_ARGB(255, fontData->borderR, fontData->borderG, fontData->borderB);
+		if (pixels)
+		{
+			for (int i = 0; i < width; i++)
+			{
+				for (int j = 0; j < height; j++)
+				{
+					int Color = b->bitmap.buffer[j * width + i];
+					if (Color > 0)
+					{
+						int px = x + i;
+						int py = fontData->glyphHeight - top + y + j;
+						int ind = px + py * textureWidth;
+						if (pixels[ind] == 0)
+						{
+							// set argb
+							pixels[ind] = D3DCOLOR_ARGB(255, fontData->borderR, fontData->borderG, fontData->borderB);
+						}
 					}
 				}
 			}
@@ -202,10 +213,9 @@ BOOL DXFont::drawChar(TCHAR chr, D3DCOLOR* pixels, int textureWidth, int x, int 
 	return TRUE;
 }
 
-DXFontTexture* DXFont::getFontTexture(TCHAR chr, int *width, int *height) {
-	std::map<int, DXFontTexture*>::iterator it;
+DXFontTexture* DXFont::getFontTexture(TCHAR chr, int *width, int *height, int* adv) {
 	int chrIndex = (int)chr;
-	it = texture_cache.find(chrIndex);
+	std::map<int, CachedTexture>::iterator it = texture_cache.find(chrIndex);
 	if (it == texture_cache.end()) {
 		int index = FT_Get_Char_Index(ftFace, chr);
 		if (!index) {
@@ -214,8 +224,8 @@ DXFontTexture* DXFont::getFontTexture(TCHAR chr, int *width, int *height) {
 		}
 
 		// render character
-		int wid, hei;
-		if (RenderChar(chr, true, &wid, &hei)) {
+		int wid, hei, ad;
+		if (RenderChar(chr, true, &wid, &hei, &ad)) {
 			// add border (necessary)
 			int border = fontData->borderWidth;
 			wid += border*2;
@@ -239,24 +249,28 @@ DXFontTexture* DXFont::getFontTexture(TCHAR chr, int *width, int *height) {
 			glyphTexture->UnlockRect(0);
 
 			// add to array
-			texture_cache.insert(std::make_pair(chrIndex, t));
+			texture_cache.insert(std::make_pair(chrIndex, CachedTexture{ ad, t }));
 
-			if (width != 0)
+			if (width)
 				*width = wid;
-			if (height != 0)
+			if (height)
 				*height = hei;
+			if (adv)
+				*adv = ad;
 
 			return t;
 		} else {
 			return 0;
 		}
 	} else {
-		DXFontTexture *t = it->second;
-		if (width != 0)
-			*width = t->width;
-		if (height != 0)
-			*height = t->height;
-		return t;
+		CachedTexture& t = it->second;
+		if (width)
+			*width = t.texture->width;
+		if (height)
+			*height = t.texture->height;
+		if (adv)
+			*adv = t.adv;
+		return t.texture;
 	}
 }
 

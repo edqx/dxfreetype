@@ -12,5 +12,5 @@ void CSVFont::SetData(TCHAR *args[]) {
 	borderG = _wtoi(args[8]);
 	borderB = _wtoi(args[9]);
 	if (args[10] > 0)
-		wcscpy(fontTexturePath, args[10]);
+		wcscpy_s(fontTexturePath, args[10]);
 }

@@ -9,11 +9,7 @@
 #include FT_FREETYPE_H
 #include FT_STROKER_H
 //#include FT_CACHE_H
-#ifdef _DEBUG
-#pragma comment(lib,"freetype253_D.lib")
-#else
-#pragma comment(lib,"freetype253.lib")
-#endif
+#pragma comment(lib,"freetype.lib")
 
 // for font texture
 #include "DXTexture.h"
@@ -29,13 +25,19 @@ public:
 #define TEXTURE_HEIGHT 1024
 #define TEXTURE_WIDTH 1024
 
+struct CachedTexture
+{
+	int adv;
+	DXFontTexture* texture;
+};
+
 class DXFont {
 private:
 	// drawing
 	IDirect3DDevice9* device;
 
 	// for caching
-	std::map<int, DXFontTexture*> texture_cache;
+	std::map<int, CachedTexture> texture_cache;
 
 	// freetype
 	FT_Library ftLib;
@@ -56,9 +58,9 @@ public:
 
 	BOOL InitDXFont(IDirect3DDevice9* device);
 	BOOL Release();
-	DXFontTexture* getFontTexture(TCHAR chr, int *wid=0, int *hei=0);
+	DXFontTexture* getFontTexture(TCHAR chr, int* wid = nullptr, int* hei = nullptr, int* adv = nullptr);
 
-	BOOL RenderChar(TCHAR chr, bool render=true, int *width=0, int *height=0);
+	BOOL RenderChar(TCHAR chr, bool render = true, int* width = nullptr, int* height = nullptr, int* adv = nullptr);
 	BOOL drawChar(TCHAR chr, D3DCOLOR *pixels, int textureWidth, int x=0, int y=0);
 	
 	LPDIRECT3DTEXTURE9 glyphTexture;
