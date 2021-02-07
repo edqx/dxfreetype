@@ -97,6 +97,63 @@ BOOL DXFont::Release() {
 	}
 }
 
+BOOL DXFont::Draw(IDirect3DDevice9* device, LPD3DXSPRITE sprite, std::string text, float size, TextAlign align, int x, int y, uint8_t r, uint8_t g, uint8_t b, uint8_t a)
+{
+	int totalWidth = 0;
+	for (int i = 0; i < text.length(); i++)
+	{
+		int charAdv;
+		if (GetFontTexture(text[i], nullptr, nullptr, &charAdv))
+			totalWidth += charAdv;
+	}
+
+	double multiply = (double)size / fontData->fontHeight;
+	double widthMul = 1;
+	double totalWidthMul = widthMul * multiply;
+	int currentWidth = totalWidth;
+
+	int sx = x;
+	switch (align)
+	{
+	case TextAlignCenter:
+		sx -= totalWidth / 2;
+		break;
+	case TextAlignRight:
+		sx -= totalWidth;
+		break;
+	}
+
+	D3DXMATRIX mat, orgmat;
+	if (sprite) sprite->GetTransform(&orgmat);
+
+	for (int i = 0; i < text.length(); i++)
+	{
+		int charAdv;
+		char ch = text[i];
+		DXFontTexture* dxfnt;
+		dxfnt = GetFontTexture(text[i], nullptr, nullptr, &charAdv);
+		if (dxfnt)
+		{
+			D3DXVECTOR2 vec1 = D3DXVECTOR2(x, y);
+			D3DXVECTOR2 vec2 = D3DXVECTOR2(totalWidthMul, multiply);
+			D3DXVECTOR2 vec3 = D3DXVECTOR2(0, 0);
+			D3DXVECTOR2 vec4 = D3DXVECTOR2(sx * totalWidthMul, y * multiply);
+			D3DXMatrixTransformation2D(&mat, &vec1, 0,
+				&vec2, &vec3, 0,
+				&vec4);
+			sprite->SetTransform(&mat);
+
+			RECT rec;
+			SetRect(&rec, dxfnt->x, dxfnt->y, dxfnt->width + dxfnt->x, dxfnt->height + dxfnt->y);
+			sprite->Draw(glyphTexture, &rec, 0, 0, D3DCOLOR_ARGB(a, r, g, b));
+		}
+
+		sx += charAdv;
+	}
+
+	sprite->SetTransform(&orgmat);
+	return TRUE;
+}
 
 BOOL DXFont::RenderChar(TCHAR chr, bool render, int *width, int *height, int* adv) {
 	// get glyph index
@@ -141,7 +198,7 @@ D3DCOLOR DXFont::getColor(int x, int y, int a) {
 	}
 }
 
-BOOL DXFont::drawChar(TCHAR chr, D3DCOLOR* pixels, int textureWidth, int x, int y) {
+BOOL DXFont::DrawChar(TCHAR chr, D3DCOLOR* pixels, int textureWidth, int x, int y) {
 	RenderChar(chr);
 
 	int width = ftFace->glyph->bitmap.width;
@@ -213,7 +270,7 @@ BOOL DXFont::drawChar(TCHAR chr, D3DCOLOR* pixels, int textureWidth, int x, int 
 	return TRUE;
 }
 
-DXFontTexture* DXFont::getFontTexture(TCHAR chr, int *width, int *height, int* adv) {
+DXFontTexture* DXFont::GetFontTexture(TCHAR chr, int *width, int *height, int* adv) {
 	int chrIndex = (int)chr;
 	std::map<int, CachedTexture>::iterator it = texture_cache.find(chrIndex);
 	if (it == texture_cache.end()) {
@@ -245,7 +302,7 @@ DXFontTexture* DXFont::getFontTexture(TCHAR chr, int *width, int *height, int* a
 			pixels = (D3DCOLOR*)lRect.pBits;
 
 			// draw text
-			drawChar(chr, pixels, TEXTURE_WIDTH, border+t->x, border+t->y); 
+			DrawChar(chr, pixels, TEXTURE_WIDTH, border+t->x, border+t->y); 
 			glyphTexture->UnlockRect(0);
 
 			// add to array

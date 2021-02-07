@@ -1,17 +1,15 @@
+#pragma once
+
 #include <d3d9.h>
 #include <d3dx9.h>
 #include <map>
-#include "CSVFont.h"
-#pragma once
-
-// freetype
+#include <string>
 #include <ft2build.h>
 #include FT_FREETYPE_H
 #include FT_STROKER_H
-//#include FT_CACHE_H
 #pragma comment(lib,"freetype.lib")
 
-// for font texture
+#include "CSVFont.h"
 #include "DXTexture.h"
 
 class DXFontTexture {
@@ -29,6 +27,13 @@ struct CachedTexture
 {
 	int adv;
 	DXFontTexture* texture;
+};
+
+enum TextAlign
+{
+	TextAlignLeft,
+	TextAlignCenter,
+	TextAlignRight
 };
 
 class DXFont {
@@ -58,10 +63,11 @@ public:
 
 	BOOL InitDXFont(IDirect3DDevice9* device);
 	BOOL Release();
-	DXFontTexture* getFontTexture(TCHAR chr, int* wid = nullptr, int* hei = nullptr, int* adv = nullptr);
+	DXFontTexture* GetFontTexture(TCHAR chr, int* wid = nullptr, int* hei = nullptr, int* adv = nullptr);
 
+	BOOL Draw(IDirect3DDevice9* device, LPD3DXSPRITE sprite, std::string text, float size, TextAlign align, int x, int y, uint8_t r, uint8_t g, uint8_t b, uint8_t a);
 	BOOL RenderChar(TCHAR chr, bool render = true, int* width = nullptr, int* height = nullptr, int* adv = nullptr);
-	BOOL drawChar(TCHAR chr, D3DCOLOR *pixels, int textureWidth, int x=0, int y=0);
+	BOOL DrawChar(TCHAR chr, D3DCOLOR *pixels, int textureWidth, int x=0, int y=0);
 	
 	LPDIRECT3DTEXTURE9 glyphTexture;
 
